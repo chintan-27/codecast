@@ -1,0 +1,44 @@
+{
+  "title": "Trace the checkout",
+  "description": "Follow validation, storage, and the confirmation response.",
+  "learningObjectives": [
+    "Trace a checkout across three modules",
+    "Recognize the in-memory storage limitation"
+  ],
+  "scenes": [
+    {
+      "title": "One complete workflow",
+      "steps": [
+        {
+          "title": "Reject an empty cart",
+          "narration": "The checkout handler receives the cart and rejects an empty list before creating an order. This establishes the caller's first validation boundary.",
+          "file": "src/checkout.ts",
+          "startLine": 8,
+          "endLine": 14
+        },
+        {
+          "title": "Validate quantities",
+          "narration": "The application boundary checks every quantity for a positive integer before handing the cart to storage. An invalid quantity throws an error back to the caller.",
+          "file": "src/server.ts",
+          "startLine": 8,
+          "endLine": 14
+        },
+        {
+          "title": "Save the record",
+          "narration": "The store copies the cart items into a new order with an identifier and timestamp. This example uses an in-memory map, so orders do not survive a process restart.",
+          "file": "src/orders.ts",
+          "startLine": 12,
+          "endLine": 20
+        },
+        {
+          "title": "Return the confirmation",
+          "narration": "The order identifier travels back to checkout, which returns a confirmation message. The caller depends on the order boundary rather than knowing how the order is stored.",
+          "file": "src/checkout.ts",
+          "startLine": 14,
+          "endLine": 19
+        }
+      ]
+    }
+  ],
+  "recap": "Checkout validates an empty cart, the application boundary checks quantities, storage saves an in-memory order, and the identifier returns to the caller."
+}

@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "lessonId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "repositoryRevision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "learningObjectives": {
+      "minItems": 1,
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "scenes": {
+      "minItems": 1,
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "steps": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "narration": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "speechText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "durationSeconds": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 600
+                },
+                "audio": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1023,
+                  "pattern": "^(?!\\/)(?!.*[\\\\\\x00-\\x1f:])(?!(?:.*\\/)?\\.{1,2}(?:\\/|$))[^/]+(?:\\/[^/]+)*$"
+                },
+                "anchor": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1023,
+                      "pattern": "^(?!\\/)(?!.*[\\\\\\x00-\\x1f:])(?!(?:.*\\/)?\\.{1,2}(?:\\/|$))[^/]+(?:\\/[^/]+)*$"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "sourceHash": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": ["file", "startLine", "endLine", "sourceHash"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "title", "narration", "durationSeconds", "anchor"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["id", "title", "steps"],
+        "additionalProperties": false
+      }
+    },
+    "recap": {
+      "type": "string",
+      "maxLength": 3000
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "lessonId",
+    "title",
+    "description",
+    "repositoryRevision",
+    "learningObjectives",
+    "scenes",
+    "recap"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:codecast:codelesson:1.0",
+  "title": "CodeLesson 1.0",
+  "description": "Runtime validation additionally checks unique IDs, ordered line ranges, and SHA-256 source hashes."
+}

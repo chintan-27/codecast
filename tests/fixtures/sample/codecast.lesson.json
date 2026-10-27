@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0",
+  "lessonId": "checkout-journey",
+  "title": "Follow the checkout.",
+  "description": "Trace a cart from the first click to a saved order. Three files, one complete story.",
+  "repositoryRevision": "sample-v1",
+  "learningObjectives": [
+    "Trace a request across module boundaries",
+    "Recognize where input validation belongs",
+    "Understand the return path and failure cases"
+  ],
+  "scenes": [
+    {
+      "id": "the-entry-point",
+      "title": "Start with the user",
+      "steps": [
+        {
+          "id": "one-clear-boundary",
+          "title": "A small, complete journey",
+          "narration": "Every checkout begins with a cart. In this lesson, we will follow that cart through three small modules: the checkout handler, the validation boundary, and the order store. Start here. The checkout function receives the items and rejects an empty cart before doing any work.",
+          "durationSeconds": 15.93,
+          "audio": "audio/step-1.mp3",
+          "anchor": {
+            "file": "src/checkout.ts",
+            "startLine": 8,
+            "endLine": 14,
+            "sourceHash": "498adb1af1401f8b291f7f71934527a90158384f9b0ae3908c3e3a1c3d21f740"
+          }
+        },
+        {
+          "id": "the-handoff",
+          "title": "Follow the handoff",
+          "narration": "The checkout handler delegates to create order and waits for the result. It does not need to know how an order is stored. Once the operation succeeds, it turns the returned identifier into a confirmation message for the user. Now let us follow that function call.",
+          "durationSeconds": 15.43,
+          "audio": "audio/step-2.mp3",
+          "anchor": {
+            "file": "src/checkout.ts",
+            "startLine": 14,
+            "endLine": 19,
+            "sourceHash": "498adb1af1401f8b291f7f71934527a90158384f9b0ae3908c3e3a1c3d21f740"
+          }
+        }
+      ]
+    },
+    {
+      "id": "the-boundary",
+      "title": "Cross the boundary",
+      "steps": [
+        {
+          "id": "validate-the-input",
+          "title": "Trust the contract, verify the input",
+          "narration": "The create order function is our application boundary. It checks every quantity before saving anything. Number dot is integer rejects fractional quantities, while the second check rejects zero and negative values. If validation fails, the error travels back to the checkout caller.",
+          "durationSeconds": 17.31,
+          "audio": "audio/step-3.mp3",
+          "anchor": {
+            "file": "src/server.ts",
+            "startLine": 8,
+            "endLine": 14,
+            "sourceHash": "9c4db3762c68e819555edf044ed92ddc098a444051d3c51423469f980a51c7f9"
+          }
+        },
+        {
+          "id": "delegate-storage",
+          "title": "Give each module one responsibility",
+          "narration": "After every item passes validation, create order hands the items to save order. The boundary owns validation, and the store owns persistence. The response exposes only the identifier and confirmation status, keeping the storage representation out of the caller.",
+          "durationSeconds": 16.135,
+          "audio": "audio/step-4.mp3",
+          "anchor": {
+            "file": "src/server.ts",
+            "startLine": 16,
+            "endLine": 17,
+            "sourceHash": "9c4db3762c68e819555edf044ed92ddc098a444051d3c51423469f980a51c7f9"
+          }
+        }
+      ]
+    },
+    {
+      "id": "the-return-path",
+      "title": "Complete the picture",
+      "steps": [
+        {
+          "id": "store-the-order",
+          "title": "Create a stable record",
+          "narration": "The store creates an identifier and a timestamp, then copies each cart item into a new order. Copying the items prevents later changes to the original cart objects from changing this record. This demo uses an in-memory map, so the orders disappear when the process stops.",
+          "durationSeconds": 16.585,
+          "audio": "audio/step-5.mp3",
+          "anchor": {
+            "file": "src/orders.ts",
+            "startLine": 12,
+            "endLine": 20,
+            "sourceHash": "22099a5dd6754e5787b33ee989b5bc5b4c469fc22b70bf7599d601e2d2a432ca"
+          }
+        },
+        {
+          "id": "close-the-loop",
+          "title": "Put the flow back together",
+          "narration": "We are back at the checkout handler. The saved order identifier has traveled through the validation boundary to become a user-facing confirmation. The complete path is checkout, validation, storage, and response. You can now trace both the success path and the validation errors across all three files.",
+          "durationSeconds": 18.015,
+          "audio": "audio/step-6.mp3",
+          "anchor": {
+            "file": "src/checkout.ts",
+            "startLine": 14,
+            "endLine": 19,
+            "sourceHash": "498adb1af1401f8b291f7f71934527a90158384f9b0ae3908c3e3a1c3d21f740"
+          }
+        }
+      ]
+    }
+  ],
+  "recap": "Checkout checks for an empty cart. The application boundary validates quantities. The store copies and saves an order, and its identifier returns to the caller. The demo store is in-memory, not durable."
+}

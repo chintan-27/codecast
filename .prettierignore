@@ -1,0 +1,9 @@
+dist
+node_modules
+package-lock.json
+implementation_plan.md
+AGENTS.md
+playwright-report
+test-results
+**/.venv/**
+.tts-cache

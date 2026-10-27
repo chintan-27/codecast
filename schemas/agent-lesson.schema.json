@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "learningObjectives": {
+      "minItems": 1,
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "scenes": {
+      "minItems": 1,
+      "maxItems": 6,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "steps": {
+            "minItems": 1,
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "narration": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 3000
+                },
+                "file": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1023
+                },
+                "startLine": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "endLine": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["title", "narration", "file", "startLine", "endLine"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["title", "steps"],
+        "additionalProperties": false
+      }
+    },
+    "recap": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 3000
+    }
+  },
+  "required": ["title", "description", "learningObjectives", "scenes", "recap"],
+  "additionalProperties": false
+}

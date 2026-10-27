@@ -66,6 +66,24 @@ Selected source contents and your learning goal are sent through the selected CL
 
 See [agent setup and generation](docs/agents.md) for CLI restrictions, context limits, saved lesson locations, and live tests. Browser preview supports lesson import and playback; CLI generation requires the desktop app.
 
+## Test a podcast about CodeCast itself
+
+With Codex signed in, Kokoro set up, and FFmpeg installed, run:
+
+```sh
+npm run test:podcast:self
+```
+
+This invokes CodeCast's generation and speech services against a fixed selection of this repository's source. It creates a podcast script, chapter WAVs, a complete MP3, a timestamped transcript, and a replayable `episode.json` under the ignored `artifacts/codecast-podcast/<timestamp>/` directory. Provider usage applies to script generation; speech runs locally. To resume an interrupted run without requesting another script, pass its artifact directory to the same command.
+
+In the desktop app, open the CodeCast repository folder and import that `episode.json` to play the exported audio alongside the original code. To automate the playback check:
+
+```sh
+CODECAST_HEADLESS=1 CODECAST_TEST_EPISODE=artifacts/codecast-podcast/<timestamp>/episode.json npm run test:desktop -- --grep 'CodeCast repository podcast'
+```
+
+The opt-in check verifies pause/resume, chapter seeking, source highlights, and every actual media-end transition. It writes a screenshot and playback results beside the exported episode. Generated audio and reports are kept out of Git.
+
 ## Local narration with Kokoro
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:

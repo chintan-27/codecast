@@ -199,9 +199,12 @@ async function main() {
     `Series plan: ${episodes.length} episodes, ${eligible.length} source/config/test/document files. ${planFile}`,
   );
   if (process.argv.includes('--plan')) return;
-  const status = await speech.status();
-  if (!status.ready)
-    throw new Error(status.message + ' No downloads are performed by this script.');
+  const scriptsOnly = process.argv.includes('--scripts-only');
+  if (!scriptsOnly) {
+    const status = await speech.status();
+    if (!status.ready)
+      throw new Error(status.message + ' No downloads are performed by this script.');
+  }
   const requested = process.argv.find((arg) => arg.startsWith('--episode='));
   const selectedEpisodes = requested
     ? episodes.filter((episode) => episode.number === Number(requested.split('=')[1]))
@@ -247,7 +250,43 @@ async function main() {
       }
       await json(scriptFile, lesson);
     }
+    const referenced = new Set(flattenSteps(lesson).map((step) => step.anchor.file));
+    const words = flattenSteps(lesson).reduce(
+      (total, step) => total + step.narration.trim().split(/\s+/).length,
+      0,
+    );
+    if (words < 1200 || episode.files.some((file) => !referenced.has(file)))
+      throw new Error(
+        `Saved script ${episode.number} does not meet the series coverage/depth requirements.`,
+      );
     const entry = await library.save(repo, lesson);
+    await writeFile(
+      path.join(directory, 'transcript.md'),
+      `# ${lesson.title}\n\n${flattenSteps(lesson)
+        .map(
+          (step) =>
+            `## ${step.title}\n\n${step.narration}\n\nSource: ${step.anchor.file}:${step.anchor.startLine}–${step.anchor.endLine}`,
+        )
+        .join('\n\n')}\n`,
+    );
+    await json(path.join(directory, 'script-verification.json'), {
+      ...entry,
+      agent,
+      words,
+      sourceReferencesVerified: true,
+      selectedFiles: episode.files,
+      referencedFiles: [...referenced],
+      allSelectedFilesReferenced: true,
+      seriesFingerprint: fingerprint,
+      audioReady: entry.audioStepCount === entry.stepCount,
+      durationIsEstimate: entry.audioStepCount !== entry.stepCount,
+    });
+    if (scriptsOnly) {
+      console.log(
+        `Episode ${episode.number} script ready in Episode library: ${words} words, ${entry.stepCount} segments. ${entry.audioStepCount === entry.stepCount ? 'Existing narration retained.' : 'Choose Narration in the desktop app to render audio on demand.'}`,
+      );
+      continue;
+    }
     let saved = entry;
     let cachedSegments = 0;
     if (entry.audioStepCount === entry.stepCount) {
@@ -337,15 +376,6 @@ async function main() {
       seriesFingerprint: fingerprint,
       libraryDirectory,
     });
-    await writeFile(
-      path.join(directory, 'transcript.md'),
-      `# ${lesson.title}\n\n${flattenSteps(lesson)
-        .map(
-          (step) =>
-            `## ${step.title}\n\n${step.narration}\n\nSource: ${step.anchor.file}:${step.anchor.startLine}–${step.anchor.endLine}`,
-        )
-        .join('\n\n')}\n`,
-    );
     await library.remember(entry.id);
     console.log(
       `Episode ${episode.number} ready in Episode library: ${(saved.durationSeconds / 60).toFixed(1)} minutes, ${saved.stepCount} segments.`,

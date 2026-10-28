@@ -125,8 +125,10 @@ test('saved podcasts play every segment from recorded source without importing a
     await expect(page.getByRole('button', { name: 'Episode library', exact: true })).toBeEnabled();
     const entries = await page.evaluate(async () => await window.codecast!.listEpisodes!());
     // Filter outside the renderer: Electron intentionally does not expose Node globals there.
-    const selected = entries.filter((entry) =>
-      entry.title.startsWith(process.env.CODECAST_TEST_SAVED_PREFIX ?? 'Inside CodeCast'),
+    const selected = entries.filter(
+      (entry) =>
+        entry.title.startsWith(process.env.CODECAST_TEST_SAVED_PREFIX ?? 'Inside CodeCast') &&
+        entry.audioStepCount === entry.stepCount,
     );
     expect(selected.length).toBeGreaterThan(0);
     for (const entry of selected) {
@@ -156,6 +158,47 @@ test('saved podcasts play every segment from recorded source without importing a
       }
     }
     await page.screenshot({ path: 'test-results/saved-podcasts.png', fullPage: true });
+  } finally {
+    await app.close();
+  }
+});
+
+test('saved series scripts reopen verified source and offer narration on demand', async () => {
+  test.skip(
+    !process.env.CODECAST_TEST_SAVED_LIBRARY,
+    'Opt in with a saved episode library directory.',
+  );
+  test.setTimeout(120000);
+  const app = await electron.launch({
+    args: [
+      '.',
+      ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
+    ],
+    env: { ...process.env, CODECAST_EPISODES_DIR: process.env.CODECAST_TEST_SAVED_LIBRARY! },
+  });
+  try {
+    const page = await app.firstWindow();
+    await expect(page.getByRole('button', { name: 'Episode library', exact: true })).toBeEnabled();
+    const entries = await page.evaluate(async () => await window.codecast!.listEpisodes!());
+    const series = entries
+      .filter((entry) => entry.title.startsWith('Inside CodeCast'))
+      .sort((a, b) => a.title.localeCompare(b.title));
+    const scripts = series.filter((entry) => entry.audioStepCount === 0);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const entry of scripts) {
+      await page.getByRole('button', { name: 'Episode library', exact: true }).click();
+      await page.getByRole('button', { name: `Open episode ${entry.title}`, exact: true }).click();
+      await expect(page.getByRole('heading', { name: entry.title, exact: true })).toBeVisible();
+      await expect(page.locator('.lesson-highlight').first()).toBeVisible();
+      await expect(page.getByText('Reading mode · no audio', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Narration', exact: true })).toBeEnabled();
+    }
+    // Leave the desktop ready to start at the first episode, rather than at the end of the test.
+    await page.getByRole('button', { name: 'Episode library', exact: true }).click();
+    await page
+      .getByRole('button', { name: `Open episode ${series[0].title}`, exact: true })
+      .click();
+    await page.screenshot({ path: 'test-results/series-ready.png', fullPage: true });
   } finally {
     await app.close();
   }

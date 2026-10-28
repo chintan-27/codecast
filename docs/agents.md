@@ -52,3 +52,9 @@ CODECAST_TEST_AGENT=codex npm run test:desktop
 ```
 
 Live tests send only the three files in `tests/fixtures/sample/src` through the selected CLI and may consume provider usage. Set `CODECAST_HEADLESS=1` for the Linux headless display, or `CODECAST_TEST_AGENT_MODEL` to test an explicit model in the desktop flow. Regular tests use deterministic CLI protocol fixtures and exercise all three adapters without calling a provider.
+
+## Scripts first, narration on demand
+
+For the repository-wide CodeCast podcast, use `npm run podcast:series -- artifacts/codecast-series --scripts-only` to generate and save the scripts without starting Python, checking speech readiness, or rendering audio. Existing narrated episodes retain their recordings. Each script must contain at least 1,200 spoken words and reference every assigned file; the artifacts include a transcript and `script-verification.json`. Durations for unnarrated scripts are estimates.
+
+Open **Episode library**, select a script, then choose **Narration** when you want its audio. That action uses the installed local Kokoro engine and saves the resulting recording with the episode. Generate one script with `--scripts-only --episode=3`, or render a planned script with `--episode=3` without the script-only flag. `--plan` refreshes the source inventory before starting a new run; validate existing scripts before reusing a plan after source edits.

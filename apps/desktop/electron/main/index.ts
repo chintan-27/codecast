@@ -6,6 +6,15 @@ import { SpeechService } from '../../../../packages/speech/service';
 import { speechRequestSchema } from '../../../../packages/speech/contract';
 import { LessonGenerationService } from '../../../../packages/agents/service';
 import { generationRequestSchema, isLessonSource } from '../../../../packages/agents/contract';
+import { EpisodeLibrary } from '../../../../packages/storage/episode-library';
+import {
+  lessonSchema,
+  flattenSteps,
+  validateLessonSources,
+} from '../../../../packages/core/lesson';
+import { speechClipSchema } from '../../../../packages/speech/contract';
+import { z } from 'zod';
+import type { OpenedEpisode } from '../../../../packages/storage/episode-contract';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -24,8 +33,13 @@ const devURL = process.env.CODECAST_DEV_URL;
 const rendererRoot = path.resolve(__dirname, '../renderer');
 let window: BrowserWindow | null = null;
 let repository: RepositoryAccess | null = null;
+let projectRepository: RepositoryAccess | null = null;
+let episodeMedia: RepositoryAccess | null = null;
+let activeEpisodeId: string | null = null;
+let navigationEpoch = 0;
 let speech: SpeechService;
 let lessons: LessonGenerationService;
+let episodes: EpisodeLibrary;
 
 function checkSender(event: Electron.IpcMainInvokeEvent) {
   const frame = event.senderFrame;
@@ -48,6 +62,44 @@ function checkSender(event: Electron.IpcMainInvokeEvent) {
 function currentRepository() {
   if (!repository) throw new Error('Open a repository first.');
   return repository;
+}
+
+function currentProject() {
+  if (!projectRepository)
+    throw new Error(
+      'Open the original project folder before importing or generating another episode.',
+    );
+  return projectRepository;
+}
+
+async function activateEpisode(id: string, epoch: number): Promise<OpenedEpisode | null> {
+  const saved = await episodes.get(id);
+  await validateLessonSources(saved.record.lesson, saved.source.readSource.bind(saved.source));
+  let project: RepositoryAccess | null = null;
+  try {
+    project = await RepositoryAccess.open(saved.record.projectRoot);
+  } catch {
+    /* Recorded source remains playable if the project moved. */
+  }
+  if (navigationEpoch !== epoch) return null;
+  speech.cancel();
+  lessons.cancel();
+  repository = saved.source;
+  projectRepository = project;
+  episodeMedia = saved.media;
+  activeEpisodeId = id;
+  await episodes.remember(id);
+  return {
+    entry: saved.entry,
+    lesson: saved.record.lesson,
+    repository: {
+      name: saved.record.projectName,
+      files: [...new Set(flattenSteps(saved.record.lesson).map((step) => step.anchor.file))],
+      truncated: false,
+      sourceSnapshot: true,
+      canGenerate: project !== null,
+    },
+  };
 }
 
 async function createWindow() {
@@ -77,16 +129,25 @@ async function createWindow() {
     callback(false),
   );
   window.on('closed', () => {
+    ++navigationEpoch;
     speech.cancel();
     lessons.cancel();
     window = null;
     repository = null;
+    projectRepository = null;
+    episodeMedia = null;
+    activeEpisodeId = null;
   });
   if (devURL) await window.loadURL(devURL);
   else await window.loadURL('codecast://app/index.html');
 }
 
 app.whenReady().then(async () => {
+  episodes = new EpisodeLibrary(
+    path.resolve(
+      process.env.CODECAST_EPISODES_DIR ?? path.join(app.getPath('userData'), 'episodes'),
+    ),
+  );
   lessons = new LessonGenerationService({
     dataDirectory:
       process.env.CODECAST_GENERATION_DATA_DIR ?? path.join(app.getPath('userData'), 'generation'),
@@ -109,12 +170,17 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('repository:open', async (event) => {
     checkSender(event);
+    const epoch = ++navigationEpoch;
     const result = await dialog.showOpenDialog(window!, { properties: ['openDirectory'] });
     if (result.canceled) return null;
     const candidate = await RepositoryAccess.open(result.filePaths[0]);
     const summary = await candidate.summary();
+    if (epoch !== navigationEpoch) throw new Error('Another folder or episode was opened.');
     lessons.cancel();
     repository = candidate;
+    projectRepository = candidate;
+    episodeMedia = null;
+    activeEpisodeId = null;
     return summary;
   });
   ipcMain.handle('repository:source', (event, file: unknown) => {
@@ -125,11 +191,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('repository:audio', (event, file: unknown) => {
     checkSender(event);
     if (typeof file !== 'string') throw new Error('Invalid file path.');
-    return currentRepository().readAudio(file);
+    return (episodeMedia ?? currentRepository()).readAudio(file);
   });
   ipcMain.handle('lesson:open', async (event) => {
     checkSender(event);
-    const repo = currentRepository();
+    const repo = currentProject();
     const result = await dialog.showOpenDialog(window!, {
       defaultPath: repo.directory,
       filters: [{ name: 'CodeLesson JSON', extensions: ['json'] }],
@@ -150,22 +216,23 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('agents:files', async (event) => {
     checkSender(event);
-    return (await currentRepository().summary()).files.filter(isLessonSource);
+    return (await currentProject().summary()).files.filter(isLessonSource);
   });
   ipcMain.handle('agents:generate', async (event, request: unknown) => {
     checkSender(event);
     const parsed = generationRequestSchema.safeParse(request);
     if (!parsed.success)
       throw new Error(`Invalid generation request: ${parsed.error.issues[0].message}`);
-    const repo = currentRepository();
+    const repo = currentProject();
     const result = await lessons.generate(repo, parsed.data, (progress) => {
       if (!event.sender.isDestroyed()) event.sender.send('agents:progress', progress);
     });
-    if (repository !== repo)
+    if (projectRepository !== repo)
       throw new Error(
         'Repository changed during generation. Generate a lesson for the current folder.',
       );
-    return result;
+    const entry = await episodes.save(repo, result.lesson);
+    return { ...result, savedEpisodeId: entry.id };
   });
   ipcMain.handle('agents:cancel', (event) => {
     checkSender(event);
@@ -194,6 +261,38 @@ app.whenReady().then(async () => {
     checkSender(event);
     if (typeof cacheKey !== 'string') throw new Error('Invalid speech cache key.');
     return speech.readAudio(cacheKey);
+  });
+  ipcMain.handle('episodes:list', (event) => {
+    checkSender(event);
+    return episodes.list();
+  });
+  ipcMain.handle('episodes:open', async (event, id: unknown) => {
+    checkSender(event);
+    if (typeof id !== 'string') throw new Error('Invalid episode ID.');
+    const opened = await activateEpisode(id, ++navigationEpoch);
+    if (!opened) throw new Error('Another folder or episode was opened.');
+    return opened;
+  });
+  ipcMain.handle('episodes:restore', async (event) => {
+    checkSender(event);
+    const epoch = ++navigationEpoch;
+    const id = await episodes.lastId();
+    return id ? activateEpisode(id, epoch) : null;
+  });
+  ipcMain.handle('episodes:save', (event, input: unknown) => {
+    checkSender(event);
+    const parsed = lessonSchema.parse(input);
+    return episodes.save(currentProject(), parsed);
+  });
+  ipcMain.handle('episodes:narration', (event, id: unknown, clips: unknown) => {
+    checkSender(event);
+    if (typeof id !== 'string' || id !== activeEpisodeId)
+      throw new Error('Open the episode before saving its narration.');
+    return episodes.attachNarration(
+      id,
+      z.array(speechClipSchema).min(1).max(200).parse(clips),
+      (key) => speech.readAudio(key),
+    );
   });
   await createWindow();
   app.on('activate', () => {

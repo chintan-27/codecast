@@ -38,6 +38,7 @@ export interface GenerationResult {
   lesson: CodeLesson;
   agent: AgentId;
   context: { files: number; bytes: number; revision: string };
+  savedEpisodeId?: string;
 }
 export const generationRequestSchema = z
   .object({

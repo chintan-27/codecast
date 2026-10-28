@@ -5,11 +5,15 @@ import type {
   GenerationRequest,
   GenerationResult,
 } from '../agents/contract';
+import type { OpenedEpisode, SavedEpisode } from '../storage/episode-contract';
+import type { CodeLesson } from './lesson';
 
 export interface RepositorySummary {
   name: string;
   files: string[];
   truncated: boolean;
+  sourceSnapshot?: boolean;
+  canGenerate?: boolean;
 }
 
 export interface DesktopBridge {
@@ -17,6 +21,11 @@ export interface DesktopBridge {
   readSource(path: string): Promise<string>;
   readAudio(path: string): Promise<string>;
   openLesson(): Promise<string | null>;
+  listEpisodes?(): Promise<SavedEpisode[]>;
+  openEpisode?(id: string): Promise<OpenedEpisode>;
+  restoreEpisode?(): Promise<OpenedEpisode | null>;
+  saveEpisode?(lesson: CodeLesson): Promise<SavedEpisode>;
+  saveEpisodeNarration?(id: string, clips: SpeechClip[]): Promise<SavedEpisode>;
   listAgents(): Promise<AgentStatus[]>;
   generationFiles(): Promise<string[]>;
   generateLesson(request: GenerationRequest): Promise<GenerationResult>;

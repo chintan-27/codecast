@@ -12,11 +12,11 @@ Detection checks the CLI version, not account/model access. A detected CLI may s
 
 ## Workflow and context
 
-Open a folder, click **Create lesson**, select an agent, and describe a specific learning goal. Choose **Overview** for roughly 4–7 steps or **Deep understanding** for roughly 8–16. An optional model field passes an ID directly to the CLI; OpenCode uses `provider/model`. Leaving it empty uses that agent's default model for the restricted run.
+Open a folder, click **Create lesson**, select an agent, and describe a specific episode focus. Choose **Overview** for roughly 4–7 steps or **Deep understanding** for roughly 12–20. An optional model field passes an ID directly to the CLI; OpenCode uses `provider/model`. Leaving it empty uses that agent's default model for the restricted run.
 
 Review the suggested files before generation. CodeCast supplies complete, numbered source files rather than granting the agent filesystem access to the original repository. The initial limit is **24 files**, **64 KB per file**, and **200 KB total**. Dependency/build directories, common credential paths, ignored files, agent configuration directories, instruction files, and lockfiles are excluded from generation context. Narrow the selection when a file or total exceeds the budget.
 
-The model sees only the selected snapshot and learning goal. This is one bounded walkthrough, not autonomous exploration of an entire repository. Include callers and callees relevant to the workflow. If the supplied context is incomplete, the prompt asks the model to state that limitation.
+The model sees only the selected snapshot and episode focus. This is one bounded walkthrough, not autonomous exploration of an entire repository. Include callers and callees relevant to the workflow. If the supplied context is incomplete, the prompt asks the model to state that limitation.
 
 ## Adapter restrictions
 
@@ -36,7 +36,7 @@ Validation establishes that source references match, not that every explanation 
 
 Only one generation job runs at a time. Canceling terminates its process group on Linux/macOS and preserves the current lesson. Windows process termination uses the spawned process handle. Jobs time out after ten minutes and agent output is capped at 8 MB. Failed/canceled jobs do not save a successful lesson. Temporary job files are removed after completion.
 
-Successful canonical lesson JSON is saved under `<CodeCast userData>/generation/lessons/<lessonId>.json`; on Linux the default is `~/.config/codecast/generation/lessons`. You can import it later after selecting the same repository. A project library and automatic resumption are future work.
+Successful canonical lesson JSON is saved under `<CodeCast userData>/generation/lessons/<lessonId>.json`; on Linux the default is `~/.config/codecast/generation/lessons`. You can import it later after selecting the same repository. The desktop also saves generated episodes to its local `episodes/` library with referenced source snapshots. Choose **Episode library** to reopen them. The last opened episode restores automatically on launch; playback position is not saved. Narration generated for a library episode persists there.
 
 ## Configuration and verification
 

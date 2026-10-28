@@ -38,6 +38,8 @@ import { demoLesson, demoSources } from './demo';
 import { browserRepository, type Repository } from './repository';
 import { SpeechPanel } from './SpeechPanel';
 import { GenerationPanel } from './GenerationPanel';
+import { EpisodeLibrary } from './EpisodeLibrary';
+import type { OpenedEpisode } from '../../../packages/storage/episode-contract';
 import type { GenerationResult } from '../../../packages/agents/contract';
 import { speechVoices, type SpeechClip, type SpeechVoice } from '../../../packages/speech/contract';
 
@@ -81,6 +83,8 @@ export function App() {
   const [speechWorking, setSpeechWorking] = useState(false);
   const [generationOpen, setGenerationOpen] = useState(false);
   const [generationWorking, setGenerationWorking] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [activeEpisodeId, setActiveEpisodeId] = useState<string | null>(null);
   const [generatedClips, setGeneratedClips] = useState<Record<string, SpeechClip>>({});
   const [speechVoice, setSpeechVoice] = useState<SpeechVoice>('af_heart');
   const [reloadStep, setReloadStep] = useState(0);
@@ -103,6 +107,49 @@ export function App() {
       : totalDuration
         ? ((completedDuration + elapsed) / totalDuration) * 100
         : 0;
+
+  function applySavedEpisode(opened: OpenedEpisode) {
+    if (!window.codecast) return;
+    const parsed = lessonSchema.parse(opened.lesson);
+    audio.current?.pause();
+    ++repositoryToken.current;
+    setRepository({
+      ...opened.repository,
+      kind: 'local',
+      readSource: window.codecast.readSource,
+      readAudio: window.codecast.readAudio,
+    });
+    setLesson(parsed);
+    setActiveEpisodeId(opened.entry.id);
+    setGeneratedClips({});
+    setSpeechOpen(false);
+    setGenerationOpen(false);
+    setLibraryOpen(false);
+    setError(null);
+    dispatch({ type: 'reset' });
+    setTab('lesson');
+  }
+
+  useEffect(() => {
+    if (!window.codecast?.restoreEpisode) return;
+    let canceled = false;
+    const token = repositoryToken.current;
+    setBusy(true);
+    window.codecast
+      .restoreEpisode()
+      .then((opened) => {
+        if (!canceled && opened && repositoryToken.current === token) applySavedEpisode(opened);
+      })
+      .catch((cause) => {
+        if (!canceled) setError(`Could not restore the last episode: ${message(cause)}`);
+      })
+      .finally(() => {
+        if (!canceled) setBusy(false);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -253,6 +300,7 @@ export function App() {
     ++viewToken.current;
     ++repositoryToken.current;
     setRepository(next);
+    setActiveEpisodeId(null);
     setGeneratedClips({});
     setSpeechOpen(false);
     setGenerationOpen(false);
@@ -295,6 +343,12 @@ export function App() {
       if (text.length > 2 * 1024 * 1024) throw new Error('Lesson exceeds the 2 MB limit.');
       const result = lessonSchema.safeParse(JSON.parse(text));
       if (!result.success) throw new Error(`Invalid lesson: ${result.error.issues[0].message}`);
+      if (window.codecast?.saveEpisode && window.codecast.openEpisode) {
+        const saved = await window.codecast.saveEpisode(result.data);
+        if (token !== repositoryToken.current) return;
+        applySavedEpisode(await window.codecast.openEpisode(saved.id));
+        return;
+      }
       await validateLessonSources(result.data, repository.readSource);
       if (token !== repositoryToken.current) return;
       setError(null);
@@ -349,6 +403,7 @@ export function App() {
     setSpeechOpen(false);
     setGenerationOpen(false);
     setRepository(makeDemo());
+    setActiveEpisodeId(null);
     setLesson(demoLesson);
     dispatch({ type: 'reset' });
     setTab('lesson');
@@ -356,8 +411,10 @@ export function App() {
     setHelp(false);
   }
 
-  function applyNarration(clips: SpeechClip[], voice: SpeechVoice) {
+  async function applyNarration(clips: SpeechClip[], voice: SpeechVoice) {
     if (!lesson) return;
+    if (activeEpisodeId && window.codecast?.saveEpisodeNarration)
+      await window.codecast.saveEpisodeNarration(activeEpisodeId, clips);
     const byId = Object.fromEntries(clips.map((clip) => [clip.stepId, clip]));
     setGeneratedClips(byId);
     setSpeechVoice(voice);
@@ -375,6 +432,10 @@ export function App() {
   }
 
   async function loadGenerated(result: GenerationResult) {
+    if (result.savedEpisodeId && window.codecast?.openEpisode) {
+      applySavedEpisode(await window.codecast.openEpisode(result.savedEpisodeId));
+      return;
+    }
     const token = repositoryToken.current;
     const parsed = lessonSchema.parse(result.lesson);
     await validateLessonSources(parsed, repository.readSource);
@@ -410,6 +471,16 @@ export function App() {
           </span>
         </a>
         <div className="sidebar-intro">A little context. A lot of clarity.</div>
+        <button
+          className="library-button"
+          disabled={busy || speechWorking || generationWorking}
+          onClick={() => {
+            dispatch({ type: 'pause' });
+            setLibraryOpen(true);
+          }}
+        >
+          <Headphones size={17} /> Episode library
+        </button>
         <button
           className="project-picker"
           onClick={openRepository}
@@ -527,7 +598,11 @@ export function App() {
           <div className="topbar-actions">
             <span className="preview-badge">
               <span />
-              {repository.kind === 'demo' ? 'SAMPLE LESSON' : 'LOCAL PROJECT'}
+              {repository.kind === 'demo'
+                ? 'SAMPLE LESSON'
+                : repository.sourceSnapshot
+                  ? 'RECORDED SOURCE'
+                  : 'LOCAL PROJECT'}
             </span>
             <button
               className="button secondary"
@@ -539,7 +614,13 @@ export function App() {
             <button
               className="button primary"
               onClick={openLesson}
-              disabled={busy || speechWorking || generationWorking || repository.kind === 'demo'}
+              disabled={
+                busy ||
+                speechWorking ||
+                generationWorking ||
+                repository.kind === 'demo' ||
+                repository.canGenerate === false
+              }
               title={
                 repository.kind === 'demo' ? 'Open your own folder to import a lesson' : undefined
               }
@@ -558,7 +639,13 @@ export function App() {
             </button>
             <button
               className="button primary"
-              disabled={busy || speechWorking || generationWorking || repository.kind === 'demo'}
+              disabled={
+                busy ||
+                speechWorking ||
+                generationWorking ||
+                repository.kind === 'demo' ||
+                repository.canGenerate === false
+              }
               onClick={() => {
                 dispatch({ type: 'pause' });
                 setGenerationOpen(true);
@@ -661,7 +748,9 @@ export function App() {
               <div className="editor-footer">
                 <span>
                   <ShieldCheck size={12} />{' '}
-                  {view?.range ? 'Source verified · SHA-256' : 'Original source · read-only'}
+                  {view?.range
+                    ? `Source verified · SHA-256${repository.sourceSnapshot ? ' · recorded source' : ''}`
+                    : 'Original source · read-only'}
                 </span>
                 <span>{view ? `${view.source.split('\n').length} lines` : 'No file selected'}</span>
               </div>
@@ -941,6 +1030,9 @@ export function App() {
             </button>
           </section>
         </div>
+      )}
+      {libraryOpen && (
+        <EpisodeLibrary onClose={() => setLibraryOpen(false)} onOpen={applySavedEpisode} />
       )}
       {speechOpen && lesson && (
         <SpeechPanel

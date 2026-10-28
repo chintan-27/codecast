@@ -81,7 +81,7 @@ for (const agent of ['codex', 'claude', 'opencode'] as const) {
     await page.getByLabel('Coding agent').selectOption(agent);
     await page.getByLabel('Explanation depth').selectOption('overview');
     await page
-      .getByLabel('Learning goal')
+      .getByLabel('Episode focus')
       .fill('Trace checkout through quantity validation and storage.');
     await page.getByLabel('Model', { exact: false }).fill('custom/model-v1');
     await page.getByRole('button', { name: 'Generate walkthrough', exact: true }).click();
@@ -105,7 +105,7 @@ for (const agent of ['codex', 'claude', 'opencode'] as const) {
 test('canceling generation preserves the current project and allows retry', async ({ page }) => {
   await mockGeneration(page, 'wait');
   await page
-    .getByLabel('Learning goal')
+    .getByLabel('Episode focus')
     .fill('Trace checkout through quantity validation and storage.');
   await page.getByRole('button', { name: 'Generate walkthrough', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel lesson generation' }).click();

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { _electron as electron, expect, test } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,6 +14,7 @@ test('the CodeCast repository podcast imports and plays every segment with synch
   const episode = lessonSchema.parse(JSON.parse(await readFile(filename, 'utf8')));
   const steps = flattenSteps(episode);
   const app = await electron.launch({
+    env: { ...process.env, CODECAST_EPISODES_DIR: '/tmp/codecast-episodes-' + randomUUID() },
     args: [
       '.',
       ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
@@ -99,6 +101,61 @@ test('the CodeCast repository podcast imports and plays every segment with synch
         2,
       ) + '\n',
     );
+  } finally {
+    await app.close();
+  }
+});
+
+test('saved podcasts play every segment from recorded source without importing again', async () => {
+  test.skip(
+    !process.env.CODECAST_TEST_SAVED_LIBRARY,
+    'Opt in with a saved episode library directory.',
+  );
+  test.setTimeout(300000);
+  const app = await electron.launch({
+    args: [
+      '.',
+      ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
+    ],
+    env: { ...process.env, CODECAST_EPISODES_DIR: process.env.CODECAST_TEST_SAVED_LIBRARY! },
+  });
+  try {
+    const page = await app.firstWindow();
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await expect(page.getByRole('button', { name: 'Episode library', exact: true })).toBeEnabled();
+    const entries = await page.evaluate(async () => await window.codecast!.listEpisodes!());
+    // Filter outside the renderer: Electron intentionally does not expose Node globals there.
+    const selected = entries.filter((entry) =>
+      entry.title.startsWith(process.env.CODECAST_TEST_SAVED_PREFIX ?? 'Inside CodeCast'),
+    );
+    expect(selected.length).toBeGreaterThan(0);
+    for (const entry of selected) {
+      await page.getByRole('button', { name: 'Episode library', exact: true }).click();
+      await page.getByRole('button', { name: `Open episode ${entry.title}`, exact: true }).click();
+      await expect(page.getByRole('heading', { name: entry.title, exact: true })).toBeVisible();
+      await expect(page.locator('.preview-badge')).toContainText('RECORDED SOURCE');
+      for (let index = 0; index < entry.stepCount; index++) {
+        await page.locator('.step-link').nth(index).click();
+        await expect(page.locator('.lesson-highlight').first()).toBeVisible();
+        await page.getByRole('button', { name: 'Play lesson', exact: true }).click();
+        await expect
+          .poll(() =>
+            page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime),
+          )
+          .toBeGreaterThan(0.05);
+        await page.locator('audio').evaluate((audio: HTMLAudioElement) => {
+          audio.currentTime = Math.max(0, audio.duration - 0.08);
+        });
+        if (index < entry.stepCount - 1) {
+          await expect(page.locator('.step-link').nth(index + 1)).toHaveAttribute(
+            'aria-current',
+            'step',
+          );
+          await page.getByRole('button', { name: 'Pause lesson', exact: true }).click();
+        } else await expect(page.getByText('That’s the whole journey.')).toBeVisible();
+      }
+    }
+    await page.screenshot({ path: 'test-results/saved-podcasts.png', fullPage: true });
   } finally {
     await app.close();
   }

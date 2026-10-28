@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { _electron as electron, expect, test } from '@playwright/test';
 import path from 'node:path';
 import os from 'node:os';
@@ -7,6 +8,7 @@ test('packaged desktop serves workers/audio and reads only the selected reposito
   const fixture = await mkdtemp(path.join(os.tmpdir(), 'codecast-desktop-'));
   await cp('tests/fixtures/sample', fixture, { recursive: true });
   const app = await electron.launch({
+    env: { ...process.env, CODECAST_EPISODES_DIR: '/tmp/codecast-episodes-' + randomUUID() },
     args: [
       '.',
       ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
@@ -67,8 +69,9 @@ test('packaged desktop serves workers/audio and reads only the selected reposito
       (await readFile(sourcePath, 'utf8')) + '\n// Changed after import\n',
     );
     await page.getByRole('button', { name: /A small, complete journey/ }).click();
-    await expect(page.locator('.error-banner')).toContainText('Source changed');
-    await expect(page.locator('.lesson-highlight')).toHaveCount(0);
+    await expect(page.locator('.error-banner')).toHaveCount(0);
+    await expect(page.locator('.lesson-highlight').first()).toBeVisible();
+    await expect(page.locator('.preview-badge')).toContainText('RECORDED SOURCE');
     expect(errors).toEqual([]);
   } finally {
     await app.close();

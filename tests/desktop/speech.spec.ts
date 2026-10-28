@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { _electron as electron, expect, test } from '@playwright/test';
 
 test('Kokoro generates playable narration and reuses the on-disk cache', async () => {
@@ -11,7 +12,12 @@ test('Kokoro generates playable narration and reuses the on-disk cache', async (
       '.',
       ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
     ],
-    env: { ...process.env, HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1' },
+    env: {
+      ...process.env,
+      CODECAST_EPISODES_DIR: '/tmp/codecast-episodes-' + randomUUID(),
+      HF_HUB_OFFLINE: '1',
+      TRANSFORMERS_OFFLINE: '1',
+    },
   });
   try {
     const page = await app.firstWindow();

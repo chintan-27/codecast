@@ -24,7 +24,7 @@ export function SpeechPanel({
   lesson: CodeLesson;
   readSource(path: string): Promise<string>;
   initialVoice: SpeechVoice;
-  onGenerated(clips: SpeechClip[], voice: SpeechVoice): void;
+  onGenerated(clips: SpeechClip[], voice: SpeechVoice): void | Promise<void>;
   onClose(): void;
   onWorking(working: boolean): void;
 }) {
@@ -117,7 +117,7 @@ export function SpeechPanel({
         if (cancelRequested.current)
           throw new Error('Narration canceled. Completed clips remain cached.');
         if (mounted.current) {
-          onGenerated(clips, voice);
+          await onGenerated(clips, voice);
           setResult(clips);
         }
       }

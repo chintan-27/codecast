@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { _electron as electron, expect, test } from '@playwright/test';
 import path from 'node:path';
 import { agentIdSchema } from '../../packages/agents/contract';
@@ -10,6 +11,7 @@ test('a live coding agent generates a lesson that opens in the desktop player', 
   test.setTimeout(300000);
   const agent = agentIdSchema.parse(process.env.CODECAST_TEST_AGENT);
   const app = await electron.launch({
+    env: { ...process.env, CODECAST_EPISODES_DIR: '/tmp/codecast-episodes-' + randomUUID() },
     args: [
       '.',
       ...(process.env.CODECAST_HEADLESS ? ['--ozone-platform=headless', '--disable-gpu'] : []),
@@ -26,7 +28,7 @@ test('a live coding agent generates a lesson that opens in the desktop player', 
     await page.getByLabel('Coding agent').selectOption(agent);
     await page.getByLabel('Explanation depth').selectOption('overview');
     await page
-      .getByLabel('Learning goal')
+      .getByLabel('Episode focus')
       .fill(
         'Trace checkout through quantity validation to saving an order and returning its identifier. Explain the in-memory storage limitation.',
       );

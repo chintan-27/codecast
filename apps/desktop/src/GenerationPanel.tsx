@@ -240,7 +240,7 @@ export function GenerationPanel({
                       disabled={working}
                     >
                       <option value="overview">Overview · 4–7 steps</option>
-                      <option value="deep">Deep understanding · 8–16 steps</option>
+                      <option value="deep">Deep understanding · 12–20 steps</option>
                     </select>
                   </label>
                 </div>
@@ -262,7 +262,7 @@ export function GenerationPanel({
                   </button>
                 </div>
                 <label className="voice-label" htmlFor="lesson-objective">
-                  Learning goal
+                  Episode focus
                 </label>
                 <textarea
                   id="lesson-objective"
